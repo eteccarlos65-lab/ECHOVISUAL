@@ -59,9 +59,12 @@ export function CameraPreview({ onStreamReady, onStreamStop }: CameraProps) {
 
   useEffect(() => {
     return () => {
-      stopCamera();
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
     };
-  }, [stopCamera]);
+  }, []);
 
   return (
     <div className="relative w-full aspect-video bg-neutral-950 rounded-xl overflow-hidden border border-neutral-800 shadow-lg flex flex-col items-center justify-center">
