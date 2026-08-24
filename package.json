@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.41",
+    "@ai-sdk/google": "^4.0.50",
     "@ai-sdk/react": "^4.0.80",
     "@base-ui/react": "^1.7.0",
     "@mediapipe/tasks-vision": "^1.0.1",
