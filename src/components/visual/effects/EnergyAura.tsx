@@ -1,5 +1,5 @@
 import { useFrame } from "@react-three/fiber";
-import { useRef, useMemo } from "react";
+import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { HandState } from "@/components/engine/useEchoMotion";
 
@@ -14,18 +14,26 @@ const auraVertexShader = `
 const auraFragmentShader = `
   uniform float uTime;
   uniform vec3 uColor;
+  uniform float uOpacity;
   varying vec2 vUv;
   void main() {
     vec2 center = vec2(0.5);
     float dist = distance(vUv, center);
     float alpha = smoothstep(0.5, 0.05, dist);
-    // Efeito de pulsação
     alpha *= 0.7 + 0.3 * sin(uTime * 8.0 - dist * 15.0);
-    gl_FragColor = vec4(uColor, alpha);
+    gl_FragColor = vec4(uColor, alpha * uOpacity);
   }
 `;
 
-export function EnergyAura({ activeHands, effectMappings }: { activeHands: HandState[], effectMappings: Record<string, string> }) {
+export function EnergyAura({
+  activeHands,
+  effectMappings,
+  clearTrigger,
+}: {
+  activeHands: HandState[];
+  effectMappings: Record<string, string>;
+  clearTrigger: number;
+}) {
   const materialsRef = useRef<THREE.ShaderMaterial[]>([]);
 
   useFrame(({ clock }) => {
@@ -35,16 +43,20 @@ export function EnergyAura({ activeHands, effectMappings }: { activeHands: HandS
     });
   });
 
-  const auraColor = useMemo(() => new THREE.Color(0xa855f7).multiplyScalar(2), []);
+  const auraColor = new THREE.Color(0xa855f7).multiplyScalar(2);
+  const shouldRender =
+    clearTrigger === 0 &&
+    Object.values(effectMappings).includes("ENERGY_AURA") &&
+    activeHands.length > 0;
 
-  if (!Object.values(effectMappings).includes("ENERGY_AURA")) return null;
+  if (!shouldRender) return null;
 
   return (
     <group>
       {activeHands.map((hand, i) => {
         const sceneX = (hand.x - 0.5) * 80;
         const sceneY = -(hand.y - 0.5) * 60;
-        
+
         return (
           <mesh key={i} position={[sceneX, sceneY, 0]}>
             <planeGeometry args={[12, 12]} />
@@ -56,7 +68,8 @@ export function EnergyAura({ activeHands, effectMappings }: { activeHands: HandS
               fragmentShader={auraFragmentShader}
               uniforms={{
                 uTime: { value: 0 },
-                uColor: { value: auraColor }
+                uColor: { value: auraColor },
+                uOpacity: { value: 1.0 },
               }}
               transparent
               blending={THREE.AdditiveBlending}

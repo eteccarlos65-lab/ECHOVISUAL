@@ -84,8 +84,12 @@ function BurstInstance({ pos, onComplete }: { pos: { x: number; y: number }, onC
   );
 }
 
-export function ParticleBurstManager({ lastEvent, effectMappings }: { lastEvent: MotionEvent | null, effectMappings: Record<string, string> }) {
+export function ParticleBurstManager({ lastEvent, effectMappings, clearTrigger }: { lastEvent: MotionEvent | null, effectMappings: Record<string, string>, clearTrigger: number }) {
   const [bursts, setBursts] = useState<{ id: string; pos: { x: number; y: number } }[]>([]);
+
+  useEffect(() => {
+    if (clearTrigger > 0) setBursts([]);
+  }, [clearTrigger]);
 
   useEffect(() => {
     if (!lastEvent) return;

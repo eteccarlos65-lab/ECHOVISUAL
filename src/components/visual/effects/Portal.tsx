@@ -82,8 +82,12 @@ function PortalInstance({ pos, onComplete }: { pos: { x: number; y: number }, on
   );
 }
 
-export function PortalManager({ lastEvent, effectMappings }: { lastEvent: MotionEvent | null, effectMappings: Record<string, string> }) {
+export function PortalManager({ lastEvent, effectMappings, clearTrigger }: { lastEvent: MotionEvent | null, effectMappings: Record<string, string>, clearTrigger: number }) {
   const [portals, setPortals] = useState<{ id: string; pos: { x: number; y: number } }[]>([]);
+
+  useEffect(() => {
+    if (clearTrigger > 0) setPortals([]);
+  }, [clearTrigger]);
 
   useEffect(() => {
     if (!lastEvent) return;

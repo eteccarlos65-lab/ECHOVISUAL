@@ -1,8 +1,10 @@
 "use client";
 
 const EVENTS = [
-  "HAND_OPEN", "HAND_CLOSED", "RIGHT_HAND_UP", "LEFT_HAND_UP",
-  "BOTH_HANDS_UP", "HAND_MOVING", "HANDS_SPREAD", "PINCH"
+  "PALM_OPEN", "FIST_CLOSED", "THUMBS_UP", "VICTORY_SIGN",
+  "PINCH", "SWIPE_LEFT", "SWIPE_RIGHT", "CROSS_ARMS",
+  "RIGHT_HAND_UP", "LEFT_HAND_UP", "BOTH_HANDS_UP",
+  "HAND_MOVING", "HANDS_SPREAD",
 ] as const;
 
 const EFFECTS = [
@@ -11,24 +13,29 @@ const EFFECTS = [
 ] as const;
 
 const EFFECT_LABELS: Record<string, string> = {
-  NONE: "Nenhum",
+  NONE: "— Nenhum",
   PARTICLE_BURST: "💥 Partículas",
   ENERGY_AURA: "🔮 Aura de Energia",
   PORTAL: "🌀 Portal",
   FIRE: "🔥 Fogo",
   LIGHTNING: "⚡ Relâmpago",
-  INVISIBILITY_CLOAK: "👻 Capa Invisível",
+  INVISIBILITY_CLOAK: "👻 Bolha Capa",
 };
 
 const EVENT_LABELS: Record<string, string> = {
-  HAND_OPEN: "✋ Mão Aberta",
-  HAND_CLOSED: "✊ Mão Fechada",
-  RIGHT_HAND_UP: "🤚 Mão Dir. Levantada",
-  LEFT_HAND_UP: "🤚 Mão Esq. Levantada",
-  BOTH_HANDS_UP: "🙌 Ambas as Mãos",
-  HAND_MOVING: "👋 Mão em Movimento",
-  HANDS_SPREAD: "🤲 Mãos Abertas",
-  PINCH: "🤌 Pinça",
+  PALM_OPEN:      "✋ Palma Aberta",
+  FIST_CLOSED:    "✊ Punho Fechado",
+  THUMBS_UP:      "👍 Joinha",
+  VICTORY_SIGN:   "✌️ Sinal de Paz",
+  PINCH:          "🤌 Pinça (polegar+índex)",
+  SWIPE_LEFT:     "👈 Deslizar Esquerda",
+  SWIPE_RIGHT:    "👉 Deslizar Direita",
+  CROSS_ARMS:     "🙅 Braços Cruzados (X)",
+  RIGHT_HAND_UP:  "🤚 Mão Dir. no Ar",
+  LEFT_HAND_UP:   "🤚 Mão Esq. no Ar",
+  BOTH_HANDS_UP:  "🙌 Ambas as Mãos",
+  HAND_MOVING:    "👋 Mão em Movimento",
+  HANDS_SPREAD:   "🤲 Mãos Afastadas",
 };
 
 interface EffectMappingEditorProps {
@@ -38,23 +45,33 @@ interface EffectMappingEditorProps {
 
 export function EffectMappingEditor({ effectMappings, onChange }: EffectMappingEditorProps) {
   return (
-    <div className="p-5 bg-neutral-900/40 border border-neutral-800 rounded-2xl">
-      <h2 className="text-xs font-bold tracking-widest text-neutral-500 uppercase mb-4">
-        Editor de Efeitos
+    <div className="p-4 bg-neutral-900/40 border border-neutral-800 rounded-2xl">
+      <h2 className="text-xs font-bold tracking-widest text-neutral-500 uppercase mb-3">
+        Mapeamento de Gestos
       </h2>
-      <div className="space-y-2.5">
+      <div className="space-y-2">
         {EVENTS.map((event) => {
           const currentEffect = effectMappings[event] ?? "NONE";
+          const isActive = currentEffect !== "NONE";
           return (
-            <div key={event} className="flex items-center gap-3">
-              <span className="text-xs text-neutral-400 w-36 shrink-0 truncate">
+            <div
+              key={event}
+              className={`flex items-center gap-3 px-2 py-1.5 rounded-lg transition-colors ${
+                isActive ? "bg-white/[0.04]" : ""
+              }`}
+            >
+              <span className={`text-xs w-36 shrink-0 truncate ${isActive ? "text-neutral-300" : "text-neutral-600"}`}>
                 {EVENT_LABELS[event]}
               </span>
               <div className="flex-1 relative">
                 <select
                   value={currentEffect}
                   onChange={(e) => onChange(event, e.target.value)}
-                  className="w-full appearance-none bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-violet-500 transition-colors cursor-pointer pr-7"
+                  className={`w-full appearance-none rounded-lg px-2.5 py-1.5 text-xs focus:outline-none transition-colors cursor-pointer pr-6 ${
+                    isActive
+                      ? "bg-neutral-800 border border-violet-800/60 text-neutral-200 focus:border-violet-500"
+                      : "bg-neutral-950 border border-neutral-800 text-neutral-500 focus:border-neutral-600"
+                  }`}
                 >
                   {EFFECTS.map((effect) => (
                     <option key={effect} value={effect}>

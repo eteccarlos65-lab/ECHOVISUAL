@@ -59,8 +59,12 @@ function LightningInstance({ pos, onComplete }: { pos: { x: number; y: number },
   );
 }
 
-export function LightningManager({ lastEvent, effectMappings }: { lastEvent: MotionEvent | null, effectMappings: Record<string, string> }) {
+export function LightningManager({ lastEvent, effectMappings, clearTrigger }: { lastEvent: MotionEvent | null, effectMappings: Record<string, string>, clearTrigger: number }) {
   const [lightnings, setLightnings] = useState<{ id: string; pos: { x: number; y: number } }[]>([]);
+
+  useEffect(() => {
+    if (clearTrigger > 0) setLightnings([]);
+  }, [clearTrigger]);
 
   useEffect(() => {
     if (!lastEvent) return;

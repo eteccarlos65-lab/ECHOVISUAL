@@ -16,32 +16,38 @@ interface VisualEngineProps {
   lastEvent: MotionEvent | null;
   activeHands: HandState[];
   effectMappings: Record<string, string>;
+  clearTrigger: number;
 }
 
-export function VisualEngine({ videoElement, lastEvent, activeHands, effectMappings }: VisualEngineProps) {
+export function VisualEngine({
+  videoElement,
+  lastEvent,
+  activeHands,
+  effectMappings,
+  clearTrigger,
+}: VisualEngineProps) {
   if (!videoElement) return null;
 
   return (
     <div className="absolute inset-0 z-20 pointer-events-none">
-      <Canvas
-        camera={{ position: [0, 0, 100], fov: 50 }}
-        gl={{ alpha: true, antialias: true }}
-      >
+      <Canvas camera={{ position: [0, 0, 100], fov: 50 }} gl={{ alpha: true, antialias: true }}>
         <VideoBackground videoElement={videoElement} />
-        
-        {/* Luzes Base */}
+
         <ambientLight intensity={0.5} />
         <directionalLight position={[10, 10, 10]} intensity={1} />
 
-        {/* Efeitos Visuais (Etapa 6 e 8) */}
-        <ParticleBurstManager lastEvent={lastEvent} effectMappings={effectMappings} />
-        <EnergyAura activeHands={activeHands} effectMappings={effectMappings} />
-        <PortalManager lastEvent={lastEvent} effectMappings={effectMappings} />
-        <FireManager lastEvent={lastEvent} effectMappings={effectMappings} />
-        <LightningManager lastEvent={lastEvent} effectMappings={effectMappings} />
-        <InvisibilityCloakManager lastEvent={lastEvent} effectMappings={effectMappings} />
-        
-        {/* Pós-processamento */}
+        <ParticleBurstManager lastEvent={lastEvent} effectMappings={effectMappings} clearTrigger={clearTrigger} />
+        <EnergyAura activeHands={activeHands} effectMappings={effectMappings} clearTrigger={clearTrigger} />
+        <PortalManager lastEvent={lastEvent} effectMappings={effectMappings} clearTrigger={clearTrigger} />
+        <FireManager lastEvent={lastEvent} effectMappings={effectMappings} clearTrigger={clearTrigger} />
+        <LightningManager lastEvent={lastEvent} effectMappings={effectMappings} clearTrigger={clearTrigger} />
+        <InvisibilityCloakManager
+          lastEvent={lastEvent}
+          effectMappings={effectMappings}
+          activeHands={activeHands}
+          clearTrigger={clearTrigger}
+        />
+
         <EffectComposer>
           <Bloom luminanceThreshold={0.8} mipmapBlur intensity={1.5} />
         </EffectComposer>

@@ -8,12 +8,15 @@ import { VisualEngine } from "@/components/visual/VisualEngine";
 import { EffectMappingEditor } from "@/components/editor/EffectMappingEditor";
 
 const DEFAULT_MAPPINGS: Record<string, string> = {
-  "HAND_OPEN": "PARTICLE_BURST",
-  "RIGHT_HAND_UP": "FIRE",
+  "PALM_OPEN":     "PARTICLE_BURST",
+  "THUMBS_UP":     "FIRE",
+  "VICTORY_SIGN":  "LIGHTNING",
+  "PINCH":         "ENERGY_AURA",
   "BOTH_HANDS_UP": "PORTAL",
-  "PINCH": "LIGHTNING",
-  "HANDS_SPREAD": "INVISIBILITY_CLOAK",
-  "LEFT_HAND_UP": "ENERGY_AURA",
+  "HANDS_SPREAD":  "INVISIBILITY_CLOAK",
+  "SWIPE_RIGHT":   "FIRE",
+  "SWIPE_LEFT":    "PARTICLE_BURST",
+  "CROSS_ARMS":    "NONE",
 };
 
 const EFFECT_COLORS: Record<string, string> = {
@@ -38,6 +41,9 @@ export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const [activeTab, setActiveTab] = useState<"editor" | "ai">("editor");
   const [mounted, setMounted] = useState(false);
+  const [clearTrigger, setClearTrigger] = useState(0);
+
+  const clearEffects = () => setClearTrigger(prev => prev + 1);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunks = useRef<Blob[]>([]);
@@ -132,6 +138,13 @@ export default function Home() {
     }
   }
 
+  // Auto-clear quando o gesto CROSS_ARMS é detectado e mapeado para NONE
+  useEffect(() => {
+    if (lastEvent?.type === "CROSS_ARMS") {
+      clearEffects();
+    }
+  }, [lastEvent]);
+
   const activeEventEffect = lastEvent ? (effectMappings[lastEvent.type] ?? "NONE") : null;
 
   return (
@@ -166,6 +179,13 @@ export default function Home() {
                 REC
               </span>
             )}
+            <button
+              onClick={clearEffects}
+              title="Limpar todos os efeitos da tela (ou cruze os braços)"
+              className="text-xs font-medium px-4 py-2 rounded-xl border transition-all duration-200 flex items-center gap-2 text-neutral-300 bg-white/5 border-white/10 hover:bg-amber-950/30 hover:border-amber-800/50 hover:text-amber-300"
+            >
+              🧹 Limpar
+            </button>
             <button
               onClick={toggleRecording}
               className={`text-xs font-medium px-4 py-2 rounded-xl border transition-all duration-200 flex items-center gap-2 ${
@@ -211,6 +231,7 @@ export default function Home() {
                   lastEvent={lastEvent}
                   activeHands={activeHands}
                   effectMappings={effectMappings}
+                  clearTrigger={clearTrigger}
                 />
                 {videoEl && (
                   <SkeletonOverlay

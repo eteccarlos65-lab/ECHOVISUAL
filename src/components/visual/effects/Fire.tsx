@@ -107,8 +107,12 @@ function FireInstance({ pos, onComplete }: { pos: { x: number; y: number }, onCo
   );
 }
 
-export function FireManager({ lastEvent, effectMappings }: { lastEvent: MotionEvent | null, effectMappings: Record<string, string> }) {
+export function FireManager({ lastEvent, effectMappings, clearTrigger }: { lastEvent: MotionEvent | null, effectMappings: Record<string, string>, clearTrigger: number }) {
   const [fires, setFires] = useState<{ id: string; pos: { x: number; y: number } }[]>([]);
+
+  useEffect(() => {
+    if (clearTrigger > 0) setFires([]);
+  }, [clearTrigger]);
 
   useEffect(() => {
     if (!lastEvent) return;
