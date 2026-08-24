@@ -56,7 +56,7 @@ export function useEchoMotion(results: HandLandmarkerResult | null) {
 
   useEffect(() => {
     if (!results || !results.landmarks || results.landmarks.length === 0) {
-      setActiveHands([]);
+      setActiveHands(prev => prev.length === 0 ? prev : []);
       zoomActiveRef.current = false;
       return;
     }
