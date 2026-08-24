@@ -6,9 +6,10 @@ const nextConfig: NextConfig = {
       {
         source: "/(.*)",
         headers: [
-          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-          { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
-          { key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
+          // Permite câmera/microfone em iframes e contextos cross-origin
+          { key: "Permissions-Policy", value: "camera=*, microphone=()" },
+          // Necessário para getUserMedia funcionar corretamente em produção
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
         ],
       },
     ];
