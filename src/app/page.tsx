@@ -1,5 +1,6 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import * as THREE from "three";
 import { CameraPreview } from "@/components/vision/CameraPreview";
 import { useHandTracking } from "@/components/vision/useHandTracking";
 import { SkeletonOverlay } from "@/components/vision/SkeletonOverlay";
@@ -42,8 +43,27 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<"editor" | "ai">("editor");
   const [mounted, setMounted] = useState(false);
   const [clearTrigger, setClearTrigger] = useState(0);
+  const [backgroundTexture, setBackgroundTexture] = useState<THREE.Texture | null>(null);
+  const [bgCaptured, setBgCaptured] = useState(false);
 
   const clearEffects = () => setClearTrigger(prev => prev + 1);
+
+  const captureBackground = useCallback(() => {
+    if (!videoEl) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = videoEl.videoWidth || 640;
+    canvas.height = videoEl.videoHeight || 480;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    // Espelha horizontalmente para coincidir com o vídeo
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(videoEl, 0, 0);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    setBackgroundTexture(tex);
+    setBgCaptured(true);
+  }, [videoEl]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunks = useRef<Blob[]>([]);
@@ -179,6 +199,21 @@ export default function Home() {
                 REC
               </span>
             )}
+            {/* Capturar Fundo para efeito de invisibilidade */}
+            <button
+              onClick={captureBackground}
+              disabled={!videoEl}
+              title={!videoEl ? "Ative a câmera primeiro" : "Saia do enquadramento e capture o fundo vazio"}
+              className={`text-xs font-medium px-4 py-2 rounded-xl border transition-all duration-200 flex items-center gap-2 ${
+                bgCaptured
+                  ? "text-emerald-300 bg-emerald-950/30 border-emerald-800/50"
+                  : videoEl
+                    ? "text-neutral-300 bg-white/5 border-white/10 hover:bg-cyan-950/30 hover:border-cyan-800/50 hover:text-cyan-300"
+                    : "text-neutral-600 bg-white/[0.02] border-white/5 cursor-not-allowed"
+              }`}
+            >
+              {bgCaptured ? "✅ Fundo Salvo" : "📷 Capturar Fundo"}
+            </button>
             <button
               onClick={clearEffects}
               title="Limpar todos os efeitos da tela (ou cruze os braços)"
@@ -232,6 +267,7 @@ export default function Home() {
                   activeHands={activeHands}
                   effectMappings={effectMappings}
                   clearTrigger={clearTrigger}
+                  backgroundTexture={backgroundTexture}
                 />
                 {videoEl && (
                   <SkeletonOverlay

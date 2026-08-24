@@ -1,137 +1,213 @@
 import { useFrame } from "@react-three/fiber";
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import * as THREE from "three";
-import { MotionEvent } from "@/components/engine/useEchoMotion";
+import { HandState, MotionEvent } from "@/components/engine/useEchoMotion";
 
-const fireVertexShader = `
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const fireFragmentShader = `
-  uniform float uTime;
-  uniform float uOpacity;
-  varying vec2 vUv;
-  
-  float hash(vec2 p) {
-    p = fract(p * vec2(123.34, 456.21));
-    p += dot(p, p + 45.32);
-    return fract(p.x * p.y);
-  }
-  
-  float noise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    float a = hash(i);
-    float b = hash(i + vec2(1.0, 0.0));
-    float c = hash(i + vec2(0.0, 1.0));
-    float d = hash(i + vec2(1.0, 1.0));
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
-  }
-  
-  float fbm(vec2 p) {
-    float v = 0.0;
-    float a = 0.5;
-    for (int i=0; i<4; i++) {
-      v += a * noise(p);
-      p *= 2.0;
-      a *= 0.5;
-    }
-    return v;
-  }
-  
-  void main() {
-    vec2 pos = vUv * 2.0 - 1.0;
-    pos.y += 0.5; 
-    
-    vec2 q = pos;
-    q.y -= uTime * 1.5;
-    
-    float n = fbm(q * 3.0);
-    
-    float shape = 1.0 - length(pos * vec2(1.0, 0.5) - vec2(0.0, -0.2));
-    shape = smoothstep(0.0, 1.0, shape);
-    
-    float intensity = n * shape;
-    
-    vec3 col = mix(vec3(1.0, 0.1, 0.0), vec3(1.0, 0.9, 0.0), intensity);
-    col *= intensity * 2.0;
-    
-    float alpha = smoothstep(0.2, 0.8, intensity) * uOpacity;
-    
-    gl_FragColor = vec4(col, alpha);
-  }
-`;
-
-function FireInstance({ pos, onComplete }: { pos: { x: number; y: number }, onComplete: () => void }) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const matRef = useRef<THREE.ShaderMaterial>(null);
-  
-  const bornAt = useRef(performance.now());
-  const life = 2000;
-
-  useFrame(({ clock }) => {
-    if (!meshRef.current || !matRef.current) return;
-    const now = performance.now();
-    const progress = (now - bornAt.current) / life;
-    
-    if (progress >= 1) {
-      onComplete();
-      return;
-    }
-    
-    matRef.current.uniforms.uTime.value = clock.getElapsedTime();
-    matRef.current.uniforms.uOpacity.value = Math.sin(progress * Math.PI);
-  });
-
-  const sceneX = (pos.x - 0.5) * 80;
-  const sceneY = -(pos.y - 0.5) * 60;
-
-  return (
-    <mesh ref={meshRef} position={[sceneX, sceneY, 0]}>
-      <planeGeometry args={[15, 20]} />
-      <shaderMaterial
-        ref={matRef}
-        vertexShader={fireVertexShader}
-        fragmentShader={fireFragmentShader}
-        uniforms={{ uTime: { value: 0 }, uOpacity: { value: 1 } }}
-        transparent
-        blending={THREE.AdditiveBlending}
-        depthWrite={false}
-      />
-    </mesh>
-  );
+// ── Partícula de fogo ─────────────────────────────────────────────────────────
+interface FireParticle {
+  position: THREE.Vector3;
+  velocity: THREE.Vector3;
+  life: number;
+  maxLife: number;
+  size: number;
 }
 
-export function FireManager({ lastEvent, effectMappings, clearTrigger }: { lastEvent: MotionEvent | null, effectMappings: Record<string, string>, clearTrigger: number }) {
-  const [fires, setFires] = useState<{ id: string; pos: { x: number; y: number } }[]>([]);
+function createParticle(origin: THREE.Vector3, fromTip: boolean): FireParticle {
+  const spread = fromTip ? 0.6 : 2.0;
+  const speed = fromTip ? 0.4 : 0.25;
+  return {
+    position: origin.clone().add(
+      new THREE.Vector3(
+        (Math.random() - 0.5) * spread,
+        (Math.random() - 0.5) * spread * 0.3,
+        (Math.random() - 0.5) * spread * 0.5
+      )
+    ),
+    velocity: new THREE.Vector3(
+      (Math.random() - 0.5) * 0.15,
+      speed + Math.random() * 0.3,
+      (Math.random() - 0.5) * 0.1
+    ),
+    life: 0,
+    maxLife: 0.8 + Math.random() * 0.6,
+    size: fromTip ? 1.2 + Math.random() * 1.5 : 2.0 + Math.random() * 2.5,
+  };
+}
 
-  useEffect(() => {
-    if (clearTrigger > 0) setFires([]);
-  }, [clearTrigger]);
+const COUNT = 300;
 
-  useEffect(() => {
-    if (!lastEvent) return;
-    
-    if (effectMappings[lastEvent.type] === "FIRE") {
-      const id = `${lastEvent.timestamp}-${Math.random()}`;
-      setFires(prev => [...prev, { id, pos: lastEvent.position }]);
-    }
-  }, [lastEvent, effectMappings]);
+export function FireManager({
+  lastEvent,
+  effectMappings,
+  activeHands,
+  clearTrigger,
+}: {
+  lastEvent: MotionEvent | null;
+  effectMappings: Record<string, string>;
+  activeHands: HandState[];
+  clearTrigger: number;
+}) {
+  const pointsRef = useRef<THREE.Points>(null);
+  const particlesRef = useRef<FireParticle[]>([]);
+  const timeRef = useRef(0);
 
-  return (
-    <group>
-      {fires.map(f => (
-        <FireInstance
-          key={f.id}
-          pos={f.pos}
-          onComplete={() => setFires(prev => prev.filter(x => x.id !== f.id))}
-        />
-      ))}
-    </group>
+  const isFireMapped = Object.entries(effectMappings).some(
+    ([k, v]) => v === "FIRE"
   );
+
+  // Geometria e atributos
+  const [positions, colors, sizes] = useMemo(() => {
+    const pos = new Float32Array(COUNT * 3);
+    const col = new Float32Array(COUNT * 3);
+    const sz = new Float32Array(COUNT);
+    return [pos, col, sz];
+  }, []);
+
+  const vertexShader = `
+    attribute float aSize;
+    attribute vec3 aColor;
+    varying vec3 vColor;
+    varying float vLife;
+    attribute float aLife;
+    void main() {
+      vColor = aColor;
+      vLife = aLife;
+      vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = aSize * (200.0 / -mvPos.z);
+      gl_Position = projectionMatrix * mvPos;
+    }
+  `;
+
+  const fragmentShader = `
+    varying vec3 vColor;
+    varying float vLife;
+    void main() {
+      vec2 uv = gl_PointCoord - 0.5;
+      float d = length(uv);
+      if (d > 0.5) discard;
+      float alpha = smoothstep(0.5, 0.0, d) * (1.0 - vLife);
+      gl_FragColor = vec4(vColor, alpha);
+    }
+  `;
+
+  const lifes = useMemo(() => new Float32Array(COUNT), []);
+
+  const geometry = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute("aColor", new THREE.BufferAttribute(colors, 3));
+    geo.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
+    geo.setAttribute("aLife", new THREE.BufferAttribute(lifes, 1));
+    return geo;
+  }, [positions, colors, sizes, lifes]);
+
+  const material = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader,
+        fragmentShader,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        vertexColors: false,
+      }),
+    []
+  );
+
+  useFrame((_, delta) => {
+    if (!pointsRef.current || clearTrigger > 0) {
+      particlesRef.current = [];
+      return;
+    }
+    timeRef.current += delta;
+
+    const hasFireGesture =
+      isFireMapped &&
+      activeHands.length > 0 &&
+      lastEvent &&
+      effectMappings[lastEvent.type] === "FIRE";
+
+    // Emite novas partículas se o gesto estiver ativo
+    if (hasFireGesture && activeHands.length > 0) {
+      const EMIT_PER_FRAME = 8;
+      for (const hand of activeHands) {
+        const palmOrigin = new THREE.Vector3(
+          (hand.x - 0.5) * 80,
+          -(hand.y - 0.5) * 60,
+          2
+        );
+
+        // Da palma — se mão aberta
+        if (hand.open) {
+          for (let e = 0; e < EMIT_PER_FRAME; e++) {
+            particlesRef.current.push(createParticle(palmOrigin, false));
+          }
+        }
+
+        // Das pontas dos dedos — quando dedo apontado (index estendido)
+        if (hand.fingers[1] && hand.landmarks) {
+          const tips = [4, 8, 12, 16, 20];
+          const extendedTips = tips.filter((_, fi) => hand.fingers[fi]);
+          for (const tipIdx of extendedTips) {
+            const lm = hand.landmarks[tipIdx];
+            if (!lm) continue;
+            const tipOrigin = new THREE.Vector3(
+              (lm.x - 0.5) * 80,
+              -(lm.y - 0.5) * 60,
+              2
+            );
+            for (let e = 0; e < 3; e++) {
+              particlesRef.current.push(createParticle(tipOrigin, true));
+            }
+          }
+        }
+      }
+    }
+
+    // Atualiza e limita partículas ao buffer
+    particlesRef.current = particlesRef.current.slice(-COUNT);
+
+    // Atualiza física
+    for (let i = 0; i < COUNT; i++) {
+      const p = particlesRef.current[i];
+      if (!p) {
+        positions[i * 3] = 10000;
+        continue;
+      }
+
+      p.life += delta / p.maxLife;
+      if (p.life > 1) {
+        positions[i * 3] = 10000;
+        continue;
+      }
+
+      // Turbulência
+      const turb = Math.sin(timeRef.current * 3 + i * 0.7) * 0.08;
+      p.velocity.x += turb * delta;
+      p.velocity.y -= 0.05 * delta; // sobe com leve desaceleração
+      p.position.add(p.velocity.clone().multiplyScalar(delta * 30));
+
+      positions[i * 3] = p.position.x;
+      positions[i * 3 + 1] = p.position.y;
+      positions[i * 3 + 2] = p.position.z;
+
+      // Cor: brasa vermelha → laranja → amarelo → branco
+      const t = 1 - p.life;
+      colors[i * 3] = Math.min(1, t * 2.0);
+      colors[i * 3 + 1] = Math.max(0, t * 1.2 - 0.1);
+      colors[i * 3 + 2] = Math.max(0, t * 0.4 - 0.2);
+
+      sizes[i] = p.size * (1 - p.life * 0.5);
+      lifes[i] = p.life;
+    }
+
+    geometry.attributes.position.needsUpdate = true;
+    geometry.attributes.aColor.needsUpdate = true;
+    geometry.attributes.aSize.needsUpdate = true;
+    geometry.attributes.aLife.needsUpdate = true;
+  });
+
+  if (!isFireMapped) return null;
+
+  return <points ref={pointsRef} geometry={geometry} material={material} />;
 }
