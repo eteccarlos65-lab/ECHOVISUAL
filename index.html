@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>EchoVisual — Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<style>
+  :root{
+    --bg:#08090d; --panel:#0f121a; --panel-2:#141826; --line: rgba(230,232,236,0.08);
+    --text:#e6e8ec; --muted:#7a8194; --violet:#8b5cf6; --cyan:#22d3ee; --fire:#fb923c; --bolt:#60a5fa;
+    --warn:#fb7185; --ok:#34d399; --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;-webkit-tap-highlight-color:transparent;}
+  body{min-height:100vh;padding-bottom:env(safe-area-inset-bottom);}
+  h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  button,input{font-family:inherit;}
+  ::selection{background:var(--violet);color:#fff;}
+  :focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
+
+  header{padding:16px 16px 10px;border-bottom:1px solid var(--line);background:linear-gradient(180deg, rgba(139,92,246,0.06), transparent);}
+  .brand{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .brand-l{display:flex;align-items:center;gap:10px;}
+  .brand .mark{width:26px;height:26px;border-radius:7px;background:conic-gradient(from 220deg, var(--violet), var(--cyan), var(--violet));flex-shrink:0;}
+  .brand span{font-weight:700;font-size:15px;letter-spacing:0.02em;}
+  .brand small{display:block;color:var(--muted);font-size:11px;margin-top:1px;font-weight:400;letter-spacing:0.02em;}
+  .fps{font-size:10.5px;color:var(--muted);}
+  .pipeline{margin-top:14px;display:flex;align-items:center;gap:0;overflow-x:auto;-ms-overflow-style:none;scrollbar-width:none;}
+  .pipeline::-webkit-scrollbar{display:none;}
+  .stage{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .stage .dot{width:7px;height:7px;border-radius:50%;background:#2a2f3d;transition:background .25s, box-shadow .25s;}
+  .stage.active .dot{background:var(--cyan);box-shadow:0 0 10px var(--cyan);}
+  .stage label{font-size:10px;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;white-space:nowrap;}
+  .stage.active label{color:var(--text);}
+  .stage-link{width:22px;height:1px;background:var(--line);flex-shrink:0;}
+
+  main{padding:14px;display:flex;flex-direction:column;gap:14px;max-width:820px;margin:0 auto;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;position:relative;}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;border-bottom:1px solid var(--line);}
+  .panel-head h2{font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin:0;}
+  .status-pill{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);padding:3px 8px;border-radius:99px;background:var(--panel-2);border:1px solid var(--line);}
+  .status-pill .led{width:6px;height:6px;border-radius:50%;background:var(--muted);}
+  .status-pill.on .led{background:var(--ok);box-shadow:0 0 6px var(--ok);}
+  .status-pill.warn .led{background:var(--warn);box-shadow:0 0 6px var(--warn);}
+
+  .cam-stage{position:relative;aspect-ratio:4/3;background:#000;}
+  video{display:none;}
+  canvas.layer{position:absolute;inset:0;width:100%;height:100%;display:block;}
+  #viz{pointer-events:none;}
+  .cam-placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:20px;color:var(--muted);background:radial-gradient(circle at 50% 40%, #14182a, #08090d);z-index:2;}
+  .cam-placeholder p{margin:0;font-size:12.5px;max-width:260px;line-height:1.5;}
+  .hint-banner{position:absolute;left:10px;right:10px;top:10px;z-index:4;background:rgba(8,9,13,0.7);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:11px;color:var(--muted);text-align:center;}
+
+  .cam-controls{display:flex;gap:8px;padding:11px 13px;border-top:1px solid var(--line);flex-wrap:wrap;}
+  .btn{appearance:none;border:1px solid var(--line);background:var(--panel-2);color:var(--text);padding:9px 14px;border-radius:9px;font-size:12.5px;font-weight:500;cursor:pointer;transition:transform .1s, border-color .15s, background .15s;display:inline-flex;align-items:center;gap:6px;}
+  .btn:hover{border-color:rgba(139,92,246,0.4);}
+  .btn:active{transform:scale(0.97);}
+  .btn.primary{background:linear-gradient(135deg, var(--violet), #6d28d9);border-color:transparent;color:#fff;}
+  .btn.ghost{background:transparent;}
+  .btn.on{border-color:var(--cyan);color:var(--cyan);}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+
+  .toggles{display:flex;flex-wrap:wrap;gap:7px;padding:11px 13px;border-top:1px solid var(--line);}
+  .tgl{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);background:var(--panel-2);border:1px solid var(--line);padding:6px 10px;border-radius:99px;cursor:pointer;user-select:none;}
+  .tgl input{accent-color:var(--violet);}
+  .tgl.active{color:var(--text);}
+  .tgl .sw{width:8px;height:8px;border-radius:2px;flex-shrink:0;}
+
+  .readout{padding:11px 13px;border-top:1px solid var(--line);font-size:11.5px;}
+  .readout-row{display:flex;justify-content:space-between;color:var(--muted);margin-bottom:5px;}
+  .event-line{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;background:var(--panel-2);border:1px solid var(--line);margin-top:2px;}
+  .event-line .evt-type{color:var(--cyan);font-weight:500;}
+  .event-line .evt-conf{margin-left:auto;color:var(--text);}
+  .conf-bar{height:3px;background:#1c2130;border-radius:2px;overflow:hidden;margin-top:6px;}
+  .conf-bar i{display:block;height:100%;background:linear-gradient(90deg, var(--violet), var(--cyan));width:0%;transition:width .15s;}
+
+  .ai-panel{padding:13px;}
+  .ai-panel label{display:block;font-size:11px;color:var(--muted);margin-bottom:8px;letter-spacing:0.02em;}
+  .ai-row{display:flex;gap:8px;}
+  .ai-row input{flex:1;background:var(--panel-2);border:1px solid var(--line);color:var(--text);padding:11px 13px;border-radius:9px;font-size:13.5px;}
+  .ai-row input::placeholder{color:#4b5163;}
+  .ai-result{margin-top:11px;padding:11px 12px;border-radius:9px;background:var(--panel-2);border:1px solid var(--line);font-size:12px;display:none;}
+  .ai-result.show{display:block;}
+  .ai-result.error{border-color:rgba(251,113,133,0.45);}
+  .ai-result .title{font-size:11px;color:var(--ok);font-weight:600;margin-bottom:7px;letter-spacing:0.03em;}
+  .ai-result.error .title{color:var(--warn);}
+  .ai-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;}
+  .ai-grid div span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:0.06em;}
+  .ai-grid div b{font-weight:500;color:var(--text);font-size:12.5px;}
+  .map-list{margin-top:12px;display:flex;flex-direction:column;gap:5px;}
+  .map-row{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;color:var(--muted);padding:6px 9px;background:var(--panel-2);border-radius:7px;border:1px solid var(--line);}
+  .map-row b{color:var(--text);font-weight:500;}
+  .map-row .arrow{color:var(--muted);margin:0 6px;}
+  .map-row.disabled{opacity:.4;}
+
+  footer{padding:16px 18px 28px;color:var(--muted);font-size:11px;line-height:1.6;max-width:820px;margin:0 auto;}
+  footer b{color:#a7adbd;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-l">
+      <div class="mark"></div>
+      <div><span>EchoVisual — Studio</span><small>captura → interpretação → evento → efeito 3D</small></div>
+    </div>
+    <div class="fps mono" id="fpsCounter">0 fps</div>
+  </div>
+  <div class="pipeline mono" id="pipeline">
+    <div class="stage" data-stage="capture"><div class="dot"></div><label>Captura</label></div>
+    <div class="stage-link"></div>
+    <div class="stage" data-stage="motion"><div class="dot"></div><label>Interpretação</label></div>
+    <div class="stage-link"></div>
+    <div class="stage" data-stage="event"><div class="dot"></div><label>Evento</label></div>
+    <div class="stage-link"></div>
+    <div class="stage" data-stage="effect"><div class="dot"></div><label>Efeito</label></div>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Studio · MediaPipe Hands + Three.js</h2>
+      <div class="status-pill" id="camStatusPill"><span class="led"></span><span id="camStatusText">Inativa</span></div>
+    </div>
+    <div class="cam-stage">
+      <video id="video" playsinline muted autoplay></video>
+      <canvas class="layer" id="stage"></canvas>
+      <canvas class="layer" id="viz"></canvas>
+      <div class="cam-placeholder" id="camPlaceholder">
+        <p>A câmera fica desligada até você ativá-la. Os efeitos aparecem sobre a sua própria imagem — nada é enviado a servidores.</p>
+      </div>
+      <div class="hint-banner" id="hintBanner" style="display:none;">Carregando modelo de rastreamento de mãos…</div>
+    </div>
+    <div class="cam-controls">
+      <button class="btn primary" id="btnStart">Ativar câmera</button>
+      <button class="btn ghost" id="btnFlip" disabled>Alternar câmera</button>
+      <button class="btn ghost" id="btnStop" disabled>Pausar</button>
+      <button class="btn ghost" id="btnBg" disabled>Capturar fundo (invisibilidade)</button>
+      <button class="btn ghost" id="btnManipulate" disabled>Manipular objeto 3D</button>
+      <button class="btn ghost" id="btnRecord" disabled>Gravar</button>
+    </div>
+    <div class="toggles" id="toggles"></div>
+    <div class="readout mono">
+      <div class="readout-row"><span>Evento</span><span id="lastEventTime">—</span></div>
+      <div class="event-line">
+        <span class="evt-type" id="evtType">AGUARDANDO</span>
+        <span class="evt-conf" id="evtConf">0%</span>
+      </div>
+      <div class="conf-bar"><i id="confBar"></i></div>
+      <div class="readout-row" style="margin-top:8px;"><span>Fundo para invisibilidade</span><span id="bgStatus">não capturado</span></div>
+      <div class="readout-row"><span>Mãos rastreadas (MediaPipe)</span><span id="handsStatus">0</span></div>
+    </div>
+  </section>
+
+  <section class="panel ai-panel">
+    <label for="aiInput">Descreva o efeito que você deseja…</label>
+    <div class="ai-row">
+      <input id="aiInput" type="text" placeholder='ex: "quando eu afastar as mãos, quero um raio elétrico"'>
+      <button class="btn primary" id="btnGen">Gerar</button>
+    </div>
+    <div class="ai-result" id="aiResult">
+      <div class="title" id="aiResultTitle">Configuração criada</div>
+      <div class="ai-grid">
+        <div><span>Evento</span><b id="aiEvt">—</b></div>
+        <div><span>Efeito</span><b id="aiEff">—</b></div>
+        <div><span>Alvo</span><b id="aiTgt">—</b></div>
+        <div><span>Intensidade</span><b id="aiInt">—</b></div>
+      </div>
+    </div>
+    <div class="map-list" id="mapList"></div>
+  </section>
+  <section class="panel ai-panel" id="jarvisPanel">
+    <div class="panel-head">
+      <h2>Jarvis · Comando de voz</h2>
+      <div class="status-pill" id="jarvisStatusPill"><span class="led"></span><span id="jarvisStatusText">Inativo</span></div>
+    </div>
+    <div style="padding:13px;">
+      <div class="cam-controls" style="padding:0 0 11px;border:none;">
+        <button class="btn primary" id="btnJarvis">🎙️ Falar com Jarvis</button>
+        <label class="tgl active" id="jarvisVoiceToggleLabel"><input type="checkbox" id="jarvisVoiceToggle" checked><span class="sw" style="background:#22d3ee"></span>Jarvis fala</label>
+      </div>
+      <div class="event-line mono" id="jarvisTranscript" style="min-height:34px;">
+        <span style="color:var(--muted);">Toque no microfone e fale um comando…</span>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.6;">
+        Exemplos: "ativar câmera" · "capturar fundo" · "manipular objeto" · "gravar" · "parar gravação" · "desligar fogo" · ou descreva um efeito, tipo "quando eu abrir a mão, quero um raio elétrico".
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <b>Sobre esta versão.</b> Novidades: efeito Lightning (raio elétrico procedural entre as duas mãos, disponível para qualquer gatilho de duas mãos via o campo de IA), objeto 3D agora é um nó tipo cristal (torus knot com material de fresnel, brilha mais nas bordas) que gira conforme o ângulo entre suas mãos além de escalar com a distância, fogo com intensidade proporcional à abertura da mão, vibração tátil nos gestos (se o aparelho suportar) e toggle de "Alta precisão" pro MediaPipe (modelo mais pesado, mais exato — teste os dois e veja o que seu aparelho aguenta). Não usei bloom de pós-processamento porque ele tende a quebrar a transparência do canvas sobre o vídeo nesta configuração; o brilho aqui é feito com camadas aditivas manuais. No build em Next.js/React (Antigravity), bloom via EffectComposer funciona bem porque lá a cena não precisa ficar transparente sobre um vídeo.
+</footer>
+
+<script>
+(() => {
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const W = 200, H = 150;
+
+  const stages = {};
+  document.querySelectorAll('.stage').forEach(el => stages[el.dataset.stage] = el);
+  function pulse(stage, ms=550){ const el = stages[stage]; if(!el) return; el.classList.add('active'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('active'), ms); }
+  function vibrate(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
+
+  const video = document.getElementById('video');
+  const stageCanvas = document.getElementById('stage');
+  stageCanvas.width = W; stageCanvas.height = H;
+  const sctx = stageCanvas.getContext('2d', { willReadFrequently:true });
+  const camPlaceholder = document.getElementById('camPlaceholder');
+  const hintBanner = document.getElementById('hintBanner');
+  const camStatusPill = document.getElementById('camStatusPill');
+  const camStatusText = document.getElementById('camStatusText');
+  const btnStart = document.getElementById('btnStart');
+  const btnStop = document.getElementById('btnStop');
+  const btnFlip = document.getElementById('btnFlip');
+  const btnBg = document.getElementById('btnBg');
+  const btnManipulate = document.getElementById('btnManipulate');
+  const bgStatus = document.getElementById('bgStatus');
+  const handsStatus = document.getElementById('handsStatus');
+  const fpsCounter = document.getElementById('fpsCounter');
+
+  let stream = null, facing = 'user', running = false, rafId = null;
+  let bgPlate = null;
+  let manipulateMode = false;
+  let highPrecision = false;
+
+  function setCamStatus(mode, text){ camStatusPill.className = 'status-pill' + (mode?' '+mode:''); camStatusText.textContent = text; }
+
+  // ---------------- MediaPipe Hands ----------------
+  let mpHands = null, mpReady = false, mpBusy = false, mpFailed = false;
+  let latestHands = [];
+
+  function initMediaPipe(){
+    if(typeof Hands === 'undefined'){ mpFailed = true; hintBanner.textContent = 'MediaPipe não carregou (verifique sua internet)'; hintBanner.style.display='block'; return; }
+    mpHands = new Hands({ locateFile: (f) => \`https://cdn.jsdelivr.net/npm/@mediapipe/hands/\${f}\` });
+    mpHands.setOptions({ maxNumHands:2, modelComplexity: highPrecision?1:0, minDetectionConfidence:0.6, minTrackingConfidence:0.5 });
+    mpHands.onResults(onHandResults);
+    mpReady = true;
+  }
+  function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+  function avgPts(pts){ let x=0,y=0; for(const p of pts){x+=p.x;y+=p.y;} return {x:x/pts.length,y:y/pts.length}; }
+
+  // ---- One Euro Filter: adaptive smoothing (steady when still, responsive when fast) ----
+  class OneEuroFilter{
+    constructor(mincutoff=1.3, beta=0.015, dcutoff=1.0){ this.mincutoff=mincutoff; this.beta=beta; this.dcutoff=dcutoff; this.xPrev=null; this.dxPrev=0; this.tPrev=null; }
+    alpha(cutoff, te){ const tau=1.0/(2*Math.PI*cutoff); return 1.0/(1.0+tau/te); }
+    filter(x, tMs){
+      if(this.tPrev===null){ this.tPrev=tMs; this.xPrev=x; return x; }
+      const te = Math.max(0.001,(tMs-this.tPrev)/1000);
+      const dx = (x-this.xPrev)/te;
+      const aD = this.alpha(this.dcutoff, te);
+      const dxHat = aD*dx + (1-aD)*this.dxPrev;
+      const cutoff = this.mincutoff + this.beta*Math.abs(dxHat);
+      const a = this.alpha(cutoff, te);
+      const xHat = a*x + (1-a)*this.xPrev;
+      this.xPrev=xHat; this.dxPrev=dxHat; this.tPrev=tMs;
+      return xHat;
+    }
+  }
+  const filters = [0,1].map(()=>({ px:new OneEuroFilter(), py:new OneEuroFilter(), tx:new OneEuroFilter(), ty:new OneEuroFilter() }));
+
+  function onHandResults(results){
+    const hands = [];
+    if(results.multiHandLandmarks){
+      for(const lm of results.multiHandLandmarks){
+        const mlm = lm.map(p => ({x:1-p.x, y:p.y}));
+        const palm = avgPts([mlm[0], mlm[5], mlm[9], mlm[13], mlm[17]]);
+        const palmSize = Math.max(0.02, dist(mlm[0], mlm[9]));
+        const tipSpread = [4,8,12,16,20].reduce((s,i)=>s+dist(mlm[i],palm),0)/5/palmSize;
+        const pinchDist = dist(mlm[4], mlm[8]);
+        hands.push({ x:palm.x, y:palm.y, tipX:mlm[8].x, tipY:mlm[8].y,
+          open: tipSpread>1.35, openness: Math.max(0.5,Math.min(1.8,tipSpread)),
+          pinch: pinchDist < palmSize*0.42, pinchAmount: Math.max(0,Math.min(1, 1-(pinchDist/palmSize)/0.7)),
+          landmarks:mlm });
+      }
+    }
+    hands.sort((a,b)=>a.x-b.x);
+    const now = performance.now();
+    hands.forEach((h,i)=>{
+      const f = filters[i] || filters[1];
+      h.x = f.px.filter(h.x, now); h.y = f.py.filter(h.y, now);
+      h.tipX = f.tx.filter(h.tipX, now); h.tipY = f.ty.filter(h.tipY, now);
+    });
+    latestHands = hands;
+    handsStatus.textContent = hands.length;
+  }
+  async function sendFrame(){
+    if(!mpReady || mpBusy || mpFailed) return;
+    mpBusy = true;
+    try{ await mpHands.send({ image: video }); } catch(e){}
+    mpBusy = false;
+  }
+
+  const HAND_CONNECTIONS = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+
+  async function startCamera(){
+    try{
+      setCamStatus('', 'Solicitando acesso…');
+      stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode: facing }, audio:false });
+      video.srcObject = stream; camPlaceholder.style.display = 'none';
+      await video.play(); running = true;
+      if(!mpHands) initMediaPipe();
+      setCamStatus('on', mpFailed ? 'Sem rastreamento' : 'Detectando'); pulse('capture', 1200);
+      btnStart.textContent = 'Câmera ativa'; btnStart.disabled = true;
+      btnStop.disabled = false; btnFlip.disabled = false; btnBg.disabled = false; btnManipulate.disabled = false; btnRecord.disabled = false;
+      hintBanner.style.display = mpFailed ? 'block' : 'none';
+      resizeViz(); loop(); rafFps();
+    }catch(err){
+      console.error(err);
+      if(err.name === 'NotAllowedError') setCamStatus('warn', 'Acesso negado pelo navegador');
+      else if(err.name === 'NotFoundError') setCamStatus('warn', 'Nenhuma câmera encontrada');
+      else setCamStatus('warn', 'Câmera indisponível');
+    }
+  }
+  function stopCamera(){
+    running = false; if(rafId) cancelAnimationFrame(rafId);
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    setCamStatus('', 'Pausada');
+    btnStart.disabled = false; btnStart.textContent = 'Retomar câmera'; btnStop.disabled = true;
+  }
+  btnStart.addEventListener('click', startCamera);
+  btnStop.addEventListener('click', stopCamera);
+  btnFlip.addEventListener('click', async () => { facing = facing==='user'?'environment':'user'; if(stream) stream.getTracks().forEach(t=>t.stop()); await startCamera(); });
+  btnBg.addEventListener('click', () => {
+    const tmp = document.createElement('canvas'); tmp.width=W; tmp.height=H;
+    const tctx = tmp.getContext('2d'); tctx.save(); tctx.scale(-1,1); tctx.drawImage(video, -W, 0, W, H); tctx.restore();
+    bgPlate = tctx.getImageData(0,0,W,H).data.slice();
+    bgStatus.textContent = 'capturado ✅';
+  });
+  btnManipulate.addEventListener('click', () => {
+    manipulateMode = !manipulateMode;
+    btnManipulate.classList.toggle('on', manipulateMode);
+    manipObject.visible = manipulateMode;
+  });
+
+  // ---- Recording / export ----
+  const btnRecord = document.getElementById('btnRecord');
+  const recordCanvas = document.createElement('canvas'); recordCanvas.width=480; recordCanvas.height=360;
+  const rctx = recordCanvas.getContext('2d');
+  let recording=false, mediaRecorder=null, recordedChunks=[];
+  function pickMime(){
+    const opts=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+    for(const o of opts){ if(window.MediaRecorder && MediaRecorder.isTypeSupported(o)) return o; }
+    return '';
+  }
+  function toggleRecord(){
+    if(!window.MediaRecorder){ alert('Este navegador não suporta gravação (MediaRecorder).'); return; }
+    if(!recording){
+      recordedChunks = [];
+      const stream = recordCanvas.captureStream(30);
+      const mime = pickMime();
+      mediaRecorder = new MediaRecorder(stream, mime?{mimeType:mime}:undefined);
+      mediaRecorder.ondataavailable = e => { if(e.data && e.data.size>0) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, {type:'video/webm'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href=url; a.download='echovisual-clip.webm';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url), 4000);
+      };
+      mediaRecorder.start();
+      recording = true; btnRecord.textContent='Parar e baixar'; btnRecord.classList.add('on');
+    } else {
+      mediaRecorder.stop();
+      recording = false; btnRecord.textContent='Gravar'; btnRecord.classList.remove('on');
+    }
+  }
+  btnRecord.addEventListener('click', toggleRecord);
+
+  // ---- Settings persistence ----
+  const STORAGE_KEY = 'echovisual_settings_v1';
+  function saveSettings(){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ effectEnabled, eventEffectMap, showSkeleton, highPrecision })); }catch(e){}
+  }
+  function loadSettings(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY); if(!raw) return;
+      const s = JSON.parse(raw);
+      if(s.effectEnabled) Object.assign(effectEnabled, s.effectEnabled);
+      if(s.eventEffectMap) Object.assign(eventEffectMap, s.eventEffectMap);
+      if(typeof s.showSkeleton==='boolean') showSkeleton = s.showSkeleton;
+      if(typeof s.highPrecision==='boolean') highPrecision = s.highPrecision;
+    }catch(e){}
+  }
+
+  const EFFECT_LABELS = { FIRE:'Fire', INVISIBILITY_CLOAK:'Invisibility Cloak', PARTICLE_BURST:'Particle Burst', PORTAL:'Portal', ENERGY_AURA:'Energy Aura', LIGHTNING:'Lightning' };
+  const EFFECT_COLORS = { FIRE:'#fb923c', INVISIBILITY_CLOAK:'#8b5cf6', PARTICLE_BURST:'#22d3ee', PORTAL:'#fb7185', ENERGY_AURA:'#a78bfa', LIGHTNING:'#60a5fa' };
+  let effectEnabled = { FIRE:true, INVISIBILITY_CLOAK:true, PARTICLE_BURST:true, PORTAL:true, ENERGY_AURA:true, LIGHTNING:true };
+  let showSkeleton = true;
+  const togglesEl = document.getElementById('toggles');
+  const toggleInputs = {};
+  Object.keys(EFFECT_LABELS).forEach(key => {
+    const label = document.createElement('label'); label.className = 'tgl active';
+    label.innerHTML = \`<input type="checkbox" checked><span class="sw" style="background:\${EFFECT_COLORS[key]}"></span>\${EFFECT_LABELS[key]}\`;
+    const input = label.querySelector('input');
+    input.addEventListener('change', () => { effectEnabled[key]=input.checked; label.classList.toggle('active', input.checked); renderMap(); saveSettings(); });
+    toggleInputs[key] = {input, label};
+    togglesEl.appendChild(label);
+  });
+  const skelLabel = document.createElement('label'); skelLabel.className='tgl active';
+  skelLabel.innerHTML = \`<input type="checkbox" checked><span class="sw" style="background:#7a8194"></span>Esqueleto\`;
+  const skelInput = skelLabel.querySelector('input');
+  skelInput.addEventListener('change', e => { showSkeleton = e.target.checked; skelLabel.classList.toggle('active', showSkeleton); saveSettings(); });
+  togglesEl.appendChild(skelLabel);
+  const precLabel = document.createElement('label'); precLabel.className='tgl';
+  precLabel.innerHTML = \`<input type="checkbox"><span class="sw" style="background:#34d399"></span>Alta precisão\`;
+  const precInput = precLabel.querySelector('input');
+  precInput.addEventListener('change', e => {
+    highPrecision = e.target.checked; precLabel.classList.toggle('active', highPrecision);
+    if(mpHands) mpHands.setOptions({ maxNumHands:2, modelComplexity: highPrecision?1:0, minDetectionConfidence:0.6, minTrackingConfidence:0.5 });
+    saveSettings();
+  });
+  togglesEl.appendChild(precLabel);
+  function syncToggleUI(){
+    for(const key in toggleInputs){ toggleInputs[key].input.checked = !!effectEnabled[key]; toggleInputs[key].label.classList.toggle('active', !!effectEnabled[key]); }
+    skelInput.checked = showSkeleton; skelLabel.classList.toggle('active', showSkeleton);
+    precInput.checked = highPrecision; precLabel.classList.toggle('active', highPrecision);
+  }
+
+  const COOLDOWN_MS = 650;
+  let lastEmitted = {};
+  let zoomActive = false;
+  const OPEN_T = 0.32, CLOSE_T = 0.16;
+
+  const evtTypeEl = document.getElementById('evtType');
+  const evtConfEl = document.getElementById('evtConf');
+  const confBar = document.getElementById('confBar');
+  const lastEventTimeEl = document.getElementById('lastEventTime');
+
+  function emitEvent(type, confidence, pos){
+    const now = Date.now();
+    if(lastEmitted[type] && now - lastEmitted[type] < COOLDOWN_MS) return;
+    lastEmitted[type] = now;
+    pulse('motion', 250); pulse('event', 450); vibrate(12);
+    evtTypeEl.textContent = type; evtConfEl.textContent = Math.round(confidence*100)+'%';
+    confBar.style.width = Math.round(confidence*100)+'%';
+    lastEventTimeEl.textContent = new Date(now).toLocaleTimeString();
+    triggerBurstIfMapped(type, pos);
+  }
+
+  // FPS
+  let fpsFrames=0, fpsLast=performance.now();
+  function rafFps(){
+    if(!running) return;
+    requestAnimationFrame(rafFps);
+    fpsFrames++;
+    const now = performance.now();
+    if(now - fpsLast > 500){ fpsCounter.textContent = Math.round(fpsFrames*1000/(now-fpsLast)) + ' fps'; fpsFrames=0; fpsLast=now; }
+  }
+
+  function loop(){
+    if(!running) return;
+    rafId = requestAnimationFrame(loop);
+    if(video.videoWidth === 0) return;
+
+    sctx.save(); sctx.scale(-1,1); sctx.drawImage(video, -W, 0, W, H); sctx.restore();
+    sendFrame();
+
+    const hands = latestHands;
+    if(hands.length>0) pulse('capture', 150);
+
+    for(const h of hands){
+      const trig = h.x < 0.5 ? 'RIGHT_HAND_UP' : 'LEFT_HAND_UP';
+      feedContinuousEffect(trig, {x:h.tipX, y:h.tipY}, h.openness);
+      const conf = 0.85;
+      if(h.y < 0.6) emitEvent(trig, conf, h);
+      else emitEvent('HAND_MOVING', conf, h);
+      emitEvent(h.open ? 'HAND_OPEN' : 'HAND_CLOSED', 0.8, h);
+    }
+
+    if(hands.length===2){
+      const [h1,h2] = hands;
+      if(h1.y<0.6 && h2.y<0.6) emitEvent('BOTH_HANDS_UP', 0.85, {x:(h1.x+h2.x)/2, y:(h1.y+h2.y)/2});
+      const d = dist(h1,h2);
+      if(!zoomActive && d>OPEN_T) zoomActive = true;
+      else if(zoomActive && d<CLOSE_T) zoomActive = false;
+      feedContinuousEffect('HANDS_SPREAD', {x:(h1.x+h2.x)/2, y:(h1.y+h2.y)/2}, 1);
+      updateLightningIfMapped(h1,h2);
+    } else {
+      zoomActive = false;
+    }
+
+    if(zoomActive && effectEnabled.INVISIBILITY_CLOAK && eventEffectMap.HANDS_SPREAD.effect==='INVISIBILITY_CLOAK' && bgPlate && hands.length===2){
+      let minX=1,maxX=0,minY=1,maxY=0;
+      for(const h of hands) for(const p of h.landmarks){ if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
+      const pad=0.03;
+      const x0=Math.max(0,minX-pad), x1=Math.min(1,maxX+pad), y0=Math.max(0,minY-pad), y1=Math.min(1,maxY+pad);
+      const frame = sctx.getImageData(0,0,W,H); const data = frame.data;
+      const px0=Math.floor(x0*W), px1=Math.ceil(x1*W), py0=Math.floor(y0*H), py1=Math.ceil(y1*H);
+      let modified=false;
+      for(let y=py0;y<py1;y++){
+        for(let x=px0;x<px1;x++){
+          const i=(y*W+x)*4;
+          const d = Math.abs(data[i]-bgPlate[i]) + Math.abs(data[i+1]-bgPlate[i+1]) + Math.abs(data[i+2]-bgPlate[i+2]);
+          if(d>50){ data[i]=bgPlate[i]; data[i+1]=bgPlate[i+1]; data[i+2]=bgPlate[i+2]; modified=true; }
+        }
+      }
+      if(modified){ sctx.putImageData(frame,0,0); pulse('effect',250); }
+    }
+
+    if(showSkeleton){
+      sctx.lineWidth = 1.6; sctx.strokeStyle = 'rgba(52,211,153,0.9)'; sctx.fillStyle = 'rgba(251,113,133,0.95)';
+      for(const h of hands){
+        for(const [a,b] of HAND_CONNECTIONS){
+          sctx.beginPath(); sctx.moveTo(h.landmarks[a].x*W, h.landmarks[a].y*H); sctx.lineTo(h.landmarks[b].x*W, h.landmarks[b].y*H); sctx.stroke();
+        }
+        for(const p of h.landmarks){ sctx.beginPath(); sctx.arc(p.x*W, p.y*H, 2, 0, Math.PI*2); sctx.fill(); }
+      }
+    }
+
+    if(manipulateMode){
+      if(hands.length===2){
+        const [h1,h2]=hands;
+        manipTarget.x=(h1.x+h2.x)/2; manipTarget.y=(h1.y+h2.y)/2;
+        manipTargetScale = Math.max(0.4, Math.min(2.6, 0.4+dist(h1,h2)*4));
+        manipTargetRot = Math.atan2(h2.y-h1.y, h2.x-h1.x);
+      } else if(hands.length===1){
+        manipTarget.x=hands[0].x; manipTarget.y=hands[0].y;
+        if(hands[0].pinch) manipTargetScale = Math.max(0.4, Math.min(2.6, 0.4 + hands[0].pinchAmount*2.2));
+      }
+    }
+    for(const h of hands){ if(h.pinch) emitEvent('PINCH', 0.8, h); }
+  }
+
+  const vizCanvas = document.getElementById('viz');
+  const renderer = new THREE.WebGLRenderer({ canvas:vizCanvas, antialias:true, alpha:true });
+  renderer.setClearColor(0x000000, 0);
+  const scene = new THREE.Scene();
+  let VW=320, VH=240;
+  const camera3 = new THREE.OrthographicCamera(0, VW, 0, VH, -500, 500);
+  camera3.position.z = 100;
+
+  function resizeViz(){
+    const r = vizCanvas.parentElement.getBoundingClientRect();
+    VW=r.width; VH=r.height;
+    renderer.setSize(VW,VH,false); renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+    camera3.left=0; camera3.right=VW; camera3.top=0; camera3.bottom=VH; camera3.updateProjectionMatrix();
+  }
+  resizeViz(); window.addEventListener('resize', resizeViz);
+
+  function circleTexture(){
+    const c=document.createElement('canvas'); c.width=64;c.height=64; const g=c.getContext('2d');
+    const grad=g.createRadialGradient(32,32,0,32,32,32);
+    grad.addColorStop(0,'rgba(255,255,255,1)'); grad.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=grad; g.fillRect(0,0,64,64); return new THREE.CanvasTexture(c);
+  }
+  const dotTex = circleTexture();
+  function toScene(nx, ny){ return new THREE.Vector3(nx*VW, ny*VH, 0); }
+  function makeGlow(colorHex, size, opacity){
+    const mat = new THREE.SpriteMaterial({ map:dotTex, color:colorHex, transparent:true, blending:THREE.AdditiveBlending, opacity, depthWrite:false });
+    const spr = new THREE.Sprite(mat); spr.scale.set(size,size,1); return spr;
+  }
+
+  const activeBursts = [];
+  function spawnEnergyAura(pos){
+    if(!effectEnabled.ENERGY_AURA) return;
+    const group = new THREE.Group();
+    const glow = makeGlow(0x8b5cf6, 90, 0.35); glow.position.copy(pos); group.add(glow);
+    const glow2 = makeGlow(0xc4b5fd, 150, 0.15); glow2.position.copy(pos); group.add(glow2);
+    const count = reducedMotion?40:150;
+    const geo=new THREE.BufferGeometry(); const pts=new Float32Array(count*3);
+    for(let i=0;i<count;i++){ const a=Math.random()*Math.PI*2, r=18+Math.random()*16;
+      pts[i*3]=pos.x+Math.cos(a)*r; pts[i*3+1]=pos.y+Math.sin(a)*r; pts[i*3+2]=(Math.random()-0.5)*10; }
+    geo.setAttribute('position', new THREE.BufferAttribute(pts,3));
+    const mat=new THREE.PointsMaterial({size:9,map:dotTex,color:0xa78bfa,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false});
+    const points=new THREE.Points(geo,mat); group.add(points); scene.add(group);
+    activeBursts.push({obj:group,born:performance.now(),life:1500,update:(t,p)=>{
+      points.rotation.z=t*0.002; mat.opacity=1-p; glow.material.opacity=0.35*(1-p); glow.scale.setScalar(90*(1+p*0.5));
+      glow2.material.opacity=0.15*(1-p);
+    }});
+  }
+  function spawnParticleBurst(pos){
+    if(!effectEnabled.PARTICLE_BURST) return;
+    const count = reducedMotion?50:220;
+    const geo=new THREE.BufferGeometry(); const pts=new Float32Array(count*3); const vel=[];
+    for(let i=0;i<count;i++){ pts[i*3]=pos.x; pts[i*3+1]=pos.y; pts[i*3+2]=0;
+      const a=Math.random()*Math.PI*2, s=1.4+Math.random()*3.2; vel.push([Math.cos(a)*s, Math.sin(a)*s, (Math.random()-0.5)*s]); }
+    geo.setAttribute('position', new THREE.BufferAttribute(pts,3));
+    const mat=new THREE.PointsMaterial({size:6,map:dotTex,color:0x22d3ee,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false});
+    const points=new THREE.Points(geo,mat); scene.add(points);
+    activeBursts.push({obj:points,born:performance.now(),life:1100,update:(t,p)=>{
+      const arr=points.geometry.attributes.position.array;
+      for(let i=0;i<count;i++){ vel[i][0]*=0.96; vel[i][2]*=0.96; vel[i][1]=vel[i][1]*0.97+0.08;
+        arr[i*3]+=vel[i][0]; arr[i*3+1]+=vel[i][1]; arr[i*3+2]+=vel[i][2]; }
+      points.geometry.attributes.position.needsUpdate=true; mat.opacity=1-p;
+    }});
+  }
+  function spawnPortal(pos){
+    if(!effectEnabled.PORTAL) return;
+    const group=new THREE.Group();
+    const glow=makeGlow(0xfb7185, 110, 0.3); glow.position.copy(pos); group.add(glow);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(28,3.2,16,48), new THREE.MeshBasicMaterial({color:0xfb7185,transparent:true,opacity:0.9}));
+    ring.position.copy(pos); group.add(ring);
+    const ring2=new THREE.Mesh(new THREE.TorusGeometry(38,1.4,12,48), new THREE.MeshBasicMaterial({color:0xfca5a5,transparent:true,opacity:0.4}));
+    ring2.position.copy(pos); group.add(ring2);
+    const count=reducedMotion?50:140;
+    const geo=new THREE.BufferGeometry(); const pts=new Float32Array(count*3);
+    for(let i=0;i<count;i++){ const a=Math.random()*Math.PI*2, r=28+Math.random()*10;
+      pts[i*3]=pos.x+Math.cos(a)*r; pts[i*3+1]=pos.y+Math.sin(a)*r; pts[i*3+2]=0; }
+    geo.setAttribute('position', new THREE.BufferAttribute(pts,3));
+    const mat=new THREE.PointsMaterial({size:5,map:dotTex,color:0xfb7185,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false});
+    const points=new THREE.Points(geo,mat); group.add(points); scene.add(group);
+    activeBursts.push({obj:group,born:performance.now(),life:1900,update:(t,p)=>{
+      ring.rotation.z=t*0.003; ring2.rotation.z=-t*0.002; points.rotation.z=-t*0.0025;
+      const s=1+Math.sin(t*0.006)*0.05; ring.scale.setScalar(s); ring2.scale.setScalar(1/s);
+      ring.material.opacity=0.9*(1-p); ring2.material.opacity=0.4*(1-p); mat.opacity=1-p; glow.material.opacity=0.3*(1-p);
+    }});
+  }
+  const BURST_EFFECTS = { ENERGY_AURA: spawnEnergyAura, PARTICLE_BURST: spawnParticleBurst, PORTAL: spawnPortal };
+
+  // ---- fire ----
+  function makePool(n){
+    const geo=new THREE.BufferGeometry();
+    const pos=new Float32Array(n*3), col=new Float32Array(n*3), vel=new Float32Array(n*3), life=new Float32Array(n);
+    geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col,3));
+    return {geo,pos,col,vel,life,n,cursor:0};
+  }
+  const fireCore = makePool(140), fireFlame = makePool(300), fireSmoke = makePool(80);
+  const fireCoreMat = new THREE.PointsMaterial({size:7, map:dotTex, vertexColors:true, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, opacity:0.95});
+  const fireFlameMat = new THREE.PointsMaterial({size:12, map:dotTex, vertexColors:true, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, opacity:0.85});
+  const fireSmokeMat = new THREE.PointsMaterial({size:18, map:dotTex, vertexColors:true, transparent:true, blending:THREE.NormalBlending, depthWrite:false, opacity:0.2});
+  scene.add(new THREE.Points(fireSmoke.geo, fireSmokeMat));
+  scene.add(new THREE.Points(fireFlame.geo, fireFlameMat));
+  scene.add(new THREE.Points(fireCore.geo, fireCoreMat));
+
+  function spawnInPool(pool, x, y, spread, vy, life, color){
+    const i = pool.cursor % pool.n; pool.cursor++;
+    pool.pos[i*3]=x+(Math.random()-0.5)*spread; pool.pos[i*3+1]=y+(Math.random()-0.5)*spread; pool.pos[i*3+2]=(Math.random()-0.5)*8;
+    pool.vel[i*3]=(Math.random()-0.5)*0.7; pool.vel[i*3+1]=vy; pool.vel[i*3+2]=(Math.random()-0.5)*0.7;
+    pool.col[i*3]=color[0]; pool.col[i*3+1]=color[1]; pool.col[i*3+2]=color[2];
+    pool.life[i]=life;
+  }
+  let fireCounter=0;
+  function feedFire(pos, intensity){
+    intensity = intensity || 1;
+    const n1=Math.round(5*intensity), n2=Math.round(6*intensity);
+    for(let n=0;n<n1;n++) spawnInPool(fireCore, pos.x, pos.y, 7, -2.2-Math.random()*0.7, 1, [1,0.95,0.6]);
+    for(let n=0;n<n2;n++) spawnInPool(fireFlame, pos.x, pos.y, 11, -1.4-Math.random()*1.1, 1, [1,0.55+Math.random()*0.2,0.05]);
+    if(fireCounter++ % 3 === 0) spawnInPool(fireSmoke, pos.x, pos.y-6, 12, -0.6-Math.random()*0.4, 1, [0.6,0.6,0.62]);
+  }
+  function updatePool(pool, decay){
+    let any=false;
+    for(let i=0;i<pool.n;i++){
+      if(pool.life[i]<=0) continue; any=true;
+      pool.life[i]-=decay;
+      pool.vel[i*3]+=Math.sin(performance.now()*0.006+i)*0.03;
+      pool.pos[i*3]+=pool.vel[i*3]; pool.pos[i*3+1]+=pool.vel[i*3+1]; pool.pos[i*3+2]+=pool.vel[i*3+2];
+      pool.vel[i*3+1]*=0.985;
+      pool.col[i*3+1]*=0.985; pool.col[i*3+2]*=0.965;
+      if(pool.life[i]<=0) pool.pos[i*3+1]=-9999;
+    }
+    if(any){ pool.geo.attributes.position.needsUpdate=true; pool.geo.attributes.color.needsUpdate=true; }
+  }
+  function updateFire(){ updatePool(fireCore,0.045); updatePool(fireFlame,0.028); updatePool(fireSmoke,0.012); }
+
+  // ---- lightning ----
+  const lightningMat = new THREE.LineBasicMaterial({color:0x93c5fd, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending});
+  const lightningMat2 = new THREE.LineBasicMaterial({color:0x60a5fa, transparent:true, opacity:0.4, blending:THREE.AdditiveBlending});
+  let lightningLines = [];
+  function makeBolt(a,b,jitter,mat){
+    const segments = 14; const pts=[];
+    for(let i=0;i<=segments;i++){
+      const t=i/segments; const p = a.clone().lerp(b,t);
+      if(i>0 && i<segments){ const dx=b.x-a.x, dy=b.y-a.y; const perp=new THREE.Vector3(-dy,dx,0).normalize().multiplyScalar((Math.random()-0.5)*jitter); p.add(perp); }
+      pts.push(p);
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    return new THREE.Line(geo, mat);
+  }
+  function feedLightning(a,b){
+    for(const l of lightningLines) scene.remove(l);
+    lightningLines = [makeBolt(a,b,20,lightningMat), makeBolt(a,b,34,lightningMat2)];
+    for(const l of lightningLines){ l._bornAt = performance.now(); scene.add(l); }
+    pulse('effect',150);
+  }
+  function updateLightningIfMapped(h1,h2){
+    if(!effectEnabled.LIGHTNING) return;
+    const mapped = (eventEffectMap.BOTH_HANDS_UP.effect==='LIGHTNING') || (eventEffectMap.HANDS_SPREAD.effect==='LIGHTNING');
+    if(mapped) feedLightning(toScene(h1.x,h1.y), toScene(h2.x,h2.y));
+  }
+  function cleanupLightning(){
+    if(lightningLines.length && performance.now()-lightningLines[0]._bornAt>140){
+      for(const l of lightningLines) scene.remove(l);
+      lightningLines = [];
+    }
+  }
+
+  // ---- manipulate object: fresnel "gem" torus knot ----
+  const gemVertex = \`varying vec3 vNormal; varying vec3 vViewDir;
+    void main(){ vNormal = normalize(normalMatrix*normal); vec4 mv = modelViewMatrix*vec4(position,1.0); vViewDir = normalize(-mv.xyz); gl_Position = projectionMatrix*mv; }\`;
+  const gemFragment = \`varying vec3 vNormal; varying vec3 vViewDir; uniform vec3 baseColor; uniform vec3 edgeColor;
+    void main(){ float f = pow(1.0-max(dot(normalize(vNormal), normalize(vViewDir)),0.0), 2.2); vec3 c = mix(baseColor, edgeColor, f); gl_FragColor = vec4(c, 0.22+f*0.78); }\`;
+  const gemMat = new THREE.ShaderMaterial({ uniforms:{ baseColor:{value:new THREE.Color(0x0ea5b8)}, edgeColor:{value:new THREE.Color(0x67e8f9)} },
+    vertexShader:gemVertex, fragmentShader:gemFragment, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide });
+  const manipGeo = new THREE.TorusKnotGeometry(26,8,110,16);
+  const manipMesh = new THREE.Mesh(manipGeo, gemMat);
+  const manipWire = new THREE.Mesh(manipGeo, new THREE.MeshBasicMaterial({color:0x22d3ee, wireframe:true, transparent:true, opacity:0.3}));
+  const manipGlow = makeGlow(0x22d3ee, 150, 0.16);
+  const manipObject = new THREE.Group(); manipObject.add(manipMesh); manipObject.add(manipWire); manipObject.add(manipGlow);
+  manipObject.visible = false;
+  scene.add(manipObject);
+  let manipTarget = {x:0.5, y:0.4}, manipTargetScale = 1, manipScale = 1, manipTargetRot = 0;
+
+  function updateManip(){
+    if(!manipObject.visible) return;
+    const target = toScene(manipTarget.x, manipTarget.y);
+    manipObject.position.lerp(target, 0.35);
+    manipScale += (manipTargetScale - manipScale)*0.3;
+    manipObject.scale.setScalar(manipScale);
+    let dz = manipTargetRot - manipObject.rotation.z;
+    while(dz > Math.PI) dz -= Math.PI*2; while(dz < -Math.PI) dz += Math.PI*2;
+    manipObject.rotation.z += dz*0.25;
+    manipObject.rotation.y += 0.012; manipObject.rotation.x += 0.006;
+  }
+
+  function feedContinuousEffect(trigger, posNorm, intensity){
+    const cfg = eventEffectMap[trigger]; if(!cfg) return;
+    if(cfg.effect === 'FIRE' && effectEnabled.FIRE){ feedFire(toScene(posNorm.x, posNorm.y), intensity); pulse('effect',250); }
+  }
+  function triggerBurstIfMapped(trigger, posNorm){
+    const cfg = eventEffectMap[trigger]; if(!cfg) return;
+    const fn = BURST_EFFECTS[cfg.effect];
+    if(fn){ fn(toScene(posNorm?posNorm.x:0.5, posNorm?posNorm.y:0.3)); pulse('effect',450); }
+  }
+
+  function animate3D(t){
+    requestAnimationFrame(animate3D);
+    for(let i=activeBursts.length-1;i>=0;i--){
+      const e=activeBursts[i]; const p=(performance.now()-e.born)/e.life;
+      if(p>=1){ scene.remove(e.obj); activeBursts.splice(i,1); continue; }
+      e.update(t,p);
+    }
+    updateFire(); updateManip(); cleanupLightning();
+    renderer.render(scene, camera3);
+    if(recording){
+      rctx.clearRect(0,0,recordCanvas.width,recordCanvas.height);
+      rctx.drawImage(stageCanvas,0,0,recordCanvas.width,recordCanvas.height);
+      rctx.drawImage(vizCanvas,0,0,recordCanvas.width,recordCanvas.height);
+    }
+  }
+  requestAnimationFrame(animate3D);
+
+  let eventEffectMap = {
+    RIGHT_HAND_UP:  { effect:'FIRE', target:'RIGHT_HAND' },
+    LEFT_HAND_UP:   { effect:'ENERGY_AURA', target:'LEFT_HAND' },
+    HAND_MOVING:    { effect:'ENERGY_AURA', target:'BODY' },
+    HAND_OPEN:      { effect:'PARTICLE_BURST', target:'BODY' },
+    BOTH_HANDS_UP:  { effect:'PORTAL', target:'BODY' },
+    HANDS_SPREAD:   { effect:'INVISIBILITY_CLOAK', target:'BOTH_HANDS' }
+  };
+  loadSettings();
+  syncToggleUI();
+  if(mpHands) mpHands.setOptions({ maxNumHands:2, modelComplexity: highPrecision?1:0, minDetectionConfidence:0.6, minTrackingConfidence:0.5 });
+  const mapList = document.getElementById('mapList');
+  function renderMap(){
+    mapList.innerHTML = '';
+    for(const trigger in eventEffectMap){
+      const cfg = eventEffectMap[trigger];
+      const row = document.createElement('div'); row.className = 'map-row' + (effectEnabled[cfg.effect]?'':' disabled');
+      row.innerHTML = \`<span><b>\${trigger}</b><span class="arrow">→</span>\${cfg.effect}\${effectEnabled[cfg.effect]?'':' (desligado)'}</span><span>\${cfg.target}</span>\`;
+      mapList.appendChild(row);
+    }
+  }
+  renderMap();
+
+  const aiInput = document.getElementById('aiInput');
+  const btnGen = document.getElementById('btnGen');
+  const aiResult = document.getElementById('aiResult');
+  const aiResultTitle = document.getElementById('aiResultTitle');
+  const aiEvt=document.getElementById('aiEvt'), aiEff=document.getElementById('aiEff'), aiTgt=document.getElementById('aiTgt'), aiInt=document.getElementById('aiInt');
+  const ALLOWED_TRIGGERS = ['RIGHT_HAND_UP','LEFT_HAND_UP','BOTH_HANDS_UP','HAND_MOVING','HAND_OPEN','HAND_CLOSED','HANDS_SPREAD','PINCH'];
+  const ALLOWED_EFFECTS  = ['ENERGY_AURA','PARTICLE_BURST','PORTAL','FIRE','INVISIBILITY_CLOAK','LIGHTNING'];
+  const ALLOWED_TARGETS  = ['RIGHT_HAND','LEFT_HAND','BOTH_HANDS','BODY'];
+
+  function showResult(ok, data, msg){
+    aiResult.classList.add('show'); aiResult.classList.toggle('error', !ok);
+    aiResultTitle.textContent = ok?'Configuração criada.':(msg||'Configuração inválida.');
+    aiEvt.textContent=data?.trigger||'—'; aiEff.textContent=data?.effect||'—'; aiTgt.textContent=data?.target||'—'; aiInt.textContent=data?.intensity!=null?data.intensity:'—';
+  }
+  function localFallbackParse(text){
+    const t=text.toLowerCase();
+    let trigger='HAND_MOVING', target='BODY';
+    if(t.includes('afast') || t.includes('zoom')){ trigger='HANDS_SPREAD'; target='BOTH_HANDS'; }
+    else if(t.includes('abrir') || t.includes('aberta')){ trigger='HAND_OPEN'; target='BODY'; }
+    else if(t.includes('fechar') || t.includes('fechada') || t.includes('punho')){ trigger='HAND_CLOSED'; target='BODY'; }
+    else if(t.includes('duas mãos') || t.includes('ambas as mãos')){ trigger='BOTH_HANDS_UP'; target='BOTH_HANDS'; }
+    else if(t.includes('mão direita')){ trigger='RIGHT_HAND_UP'; target='RIGHT_HAND'; }
+    else if(t.includes('mão esquerda')){ trigger='LEFT_HAND_UP'; target='LEFT_HAND'; }
+    let effect='ENERGY_AURA';
+    if(t.includes('raio')||t.includes('elétric')||t.includes('lightning')||t.includes('relâmpago')) effect='LIGHTNING';
+    else if(t.includes('fogo')||t.includes('fire')||t.includes('chama')) effect='FIRE';
+    else if(t.includes('invis')||t.includes('sumir')||t.includes('desaparec')) effect='INVISIBILITY_CLOAK';
+    else if(t.includes('portal')) effect='PORTAL';
+    else if(t.includes('explos')||t.includes('partícul')||t.includes('particul')) effect='PARTICLE_BURST';
+    return { trigger, effect, target, intensity:0.8 };
+  }
+  function validateConfig(obj){
+    if(!obj||typeof obj!=='object') return null;
+    if(!ALLOWED_TRIGGERS.includes(obj.trigger)) return null;
+    if(!ALLOWED_EFFECTS.includes(obj.effect)) return null;
+    if(!ALLOWED_TARGETS.includes(obj.target)) return null;
+    let intensity=Number(obj.intensity); if(isNaN(intensity)) intensity=0.8;
+    intensity=Math.max(0,Math.min(1,intensity));
+    return { trigger:obj.trigger, effect:obj.effect, target:obj.target, intensity };
+  }
+  async function callEchoVisualAI(text){
+    const system = \`Você é a camada EchoVisual AI. Transforme a instrução do usuário em UMA configuração de gatilho visual.
+Responda APENAS com um objeto JSON, sem markdown, sem explicação, no formato exato:
+{"trigger":"<um de \${ALLOWED_TRIGGERS.join('|')}>","effect":"<um de \${ALLOWED_EFFECTS.join('|')}>","target":"<um de \${ALLOWED_TARGETS.join('|')}>","intensity":<número entre 0 e 1>}
+HANDS_SPREAD é o gesto de afastar as duas mãos (zoom). HAND_OPEN/HAND_CLOSED são a mão aberta/fechada. LIGHTNING só faz sentido em BOTH_HANDS_UP ou HANDS_SPREAD (efeito entre as duas mãos).\`;
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:200, system, messages:[{role:'user',content:text}] })
+    });
+    if(!res.ok) throw new Error('IA indisponível');
+    const data = await res.json();
+    const raw = (data.content||[]).map(b=>b.text||'').join('').trim();
+    return JSON.parse(raw.replace(/\`\`\`json|\`\`\`/g,'').trim());
+  }
+  async function generateConfig(){
+    const text = aiInput.value.trim(); if(!text) return;
+    btnGen.disabled=true; btnGen.textContent='Gerando…'; pulse('motion',900);
+    let parsed=null, usedFallback=false;
+    try{ parsed = await callEchoVisualAI(text); } catch(e){ usedFallback=true; parsed=localFallbackParse(text); }
+    const valid = validateConfig(parsed);
+    btnGen.disabled=false; btnGen.textContent='Gerar';
+    if(!valid){ showResult(false, parsed, 'Configuração inválida — não aplicada.'); return; }
+    eventEffectMap[valid.trigger] = { effect:valid.effect, target:valid.target };
+    renderMap(); saveSettings();
+    showResult(true, valid, usedFallback?'Configuração criada (IA indisponível — interpretação local).':'Configuração criada.');
+    pulse('event',500);
+    if(BURST_EFFECTS[valid.effect]) BURST_EFFECTS[valid.effect](toScene(0.5,0.35));
+    if(valid.effect==='FIRE') feedFire(toScene(0.5,0.35),1);
+    if(valid.effect==='LIGHTNING') feedLightning(toScene(0.3,0.4), toScene(0.7,0.4));
+    pulse('effect',500);
+  }
+  btnGen.addEventListener('click', generateConfig);
+  aiInput.addEventListener('keydown', e => { if(e.key==='Enter') generateConfig(); });
+
+  // ---------------- Jarvis: voice command layer ----------------
+  const btnJarvis = document.getElementById('btnJarvis');
+  const jarvisStatusPill = document.getElementById('jarvisStatusPill');
+  const jarvisStatusText = document.getElementById('jarvisStatusText');
+  const jarvisTranscript = document.getElementById('jarvisTranscript');
+  const jarvisVoiceToggle = document.getElementById('jarvisVoiceToggle');
+  let jarvisVoiceOn = true;
+  jarvisVoiceToggle.addEventListener('change', e => { jarvisVoiceOn = e.target.checked; });
+
+  function setJarvisStatus(mode, text){ jarvisStatusPill.className='status-pill'+(mode?' '+mode:''); jarvisStatusText.textContent=text; }
+  function jarvisSpeak(text){
+    if(!jarvisVoiceOn || !window.speechSynthesis) return;
+    try{ window.speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.lang='pt-BR'; u.rate=1.02; u.pitch=0.85; window.speechSynthesis.speak(u); }catch(e){}
+  }
+  function showTranscript(text, isJarvis){
+    jarvisTranscript.innerHTML = isJarvis
+      ? \`<span class="evt-type">Jarvis</span><span style="margin-left:8px;">\${text}</span>\`
+      : \`<span style="color:var(--muted);">Você:</span><span style="margin-left:8px;">\${text}</span>\`;
+  }
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null, listening = false;
+
+  if(!SR){
+    setJarvisStatus('warn','Não suportado neste navegador');
+    btnJarvis.disabled = true;
+    showTranscript('Este navegador (ex: Safari/iOS) não suporta reconhecimento de voz. Funciona bem no Chrome Android.', true);
+  } else {
+    recognition = new SR();
+    recognition.lang = 'pt-BR'; recognition.continuous = false; recognition.interimResults = false; recognition.maxAlternatives = 1;
+    recognition.onstart = () => { listening = true; setJarvisStatus('on','Ouvindo…'); btnJarvis.classList.add('on'); };
+    recognition.onerror = (e) => { setJarvisStatus('warn', e.error==='not-allowed' ? 'Microfone negado' : 'Erro: '+e.error); };
+    recognition.onend = () => { listening=false; btnJarvis.classList.remove('on'); if(jarvisStatusText.textContent==='Ouvindo…') setJarvisStatus('','Inativo'); };
+    recognition.onresult = (event) => { const text = event.results[0][0].transcript.trim(); showTranscript(text, false); handleJarvisCommand(text); };
+    btnJarvis.addEventListener('click', () => { if(listening){ recognition.stop(); return; } try{ recognition.start(); }catch(e){} });
+  }
+
+  function findEffectKeyInText(t){
+    const map = { fogo:'FIRE', fire:'FIRE', invisibilidade:'INVISIBILITY_CLOAK', invisível:'INVISIBILITY_CLOAK', 'partícula':'PARTICLE_BURST', explosão:'PARTICLE_BURST', portal:'PORTAL', aura:'ENERGY_AURA', energia:'ENERGY_AURA', raio:'LIGHTNING', elétrico:'LIGHTNING', relâmpago:'LIGHTNING' };
+    for(const k in map){ if(t.includes(k)) return map[k]; }
+    return null;
+  }
+
+  async function handleJarvisCommand(text){
+    const t = text.toLowerCase();
+    if(t.includes('ativar câmera') || t.includes('ligar câmera') || t.includes('ligar a câmera')){
+      if(!running){ await startCamera(); jarvisSpeak('Câmera ativada.'); showTranscript('Câmera ativada.', true); }
+      else { jarvisSpeak('A câmera já está ativa.'); showTranscript('A câmera já está ativa.', true); }
+      return;
+    }
+    if(t.includes('pausar câmera') || t.includes('desligar câmera') || t.includes('parar câmera')){
+      if(running){ stopCamera(); jarvisSpeak('Câmera pausada.'); showTranscript('Câmera pausada.', true); }
+      return;
+    }
+    if(t.includes('alternar câmera') || t.includes('trocar câmera') || t.includes('virar câmera')){
+      if(!btnFlip.disabled){ btnFlip.click(); jarvisSpeak('Alternando câmera.'); showTranscript('Alternando câmera.', true); }
+      return;
+    }
+    if(t.includes('capturar fundo') || t.includes('captura o fundo') || t.includes('capturar o fundo')){
+      if(!btnBg.disabled){ btnBg.click(); jarvisSpeak('Fundo capturado. Invisibilidade pronta.'); showTranscript('Fundo capturado.', true); }
+      else { jarvisSpeak('Ative a câmera primeiro.'); showTranscript('Ative a câmera primeiro.', true); }
+      return;
+    }
+    if(t.includes('manipular objeto') || t.includes('modo manipulação') || t.includes('manipular o objeto')){
+      if(!btnManipulate.disabled){ btnManipulate.click(); jarvisSpeak(manipulateMode?'Modo de manipulação ativado.':'Modo de manipulação desativado.'); showTranscript('Modo de manipulação alternado.', true); }
+      return;
+    }
+    if(t.includes('parar gravação') || t.includes('parar de gravar')){
+      if(recording){ toggleRecord(); jarvisSpeak('Gravação salva.'); showTranscript('Gravação salva.', true); }
+      return;
+    }
+    if(t.includes('gravar') || t.includes('iniciar gravação') || t.includes('começar a gravar')){
+      if(!btnRecord.disabled && !recording){ toggleRecord(); jarvisSpeak('Gravando.'); showTranscript('Gravando.', true); }
+      return;
+    }
+    if(t.includes('abrir arquivo')){
+      if(window.showOpenFilePicker){
+        try{
+          const [handle] = await window.showOpenFilePicker();
+          jarvisSpeak(\`Arquivo \${handle.name} selecionado.\`);
+          showTranscript(\`Arquivo selecionado: \${handle.name} — seleção apenas, este protótipo ainda não processa o conteúdo.\`, true);
+        }catch(e){ jarvisSpeak('Nenhum arquivo selecionado.'); }
+      } else {
+        jarvisSpeak('Este navegador não permite abrir arquivos por comando de voz.');
+        showTranscript('Não suportado neste navegador. E por segurança, nenhuma página consegue vasculhar seus arquivos sem você escolher manualmente — isso vale pra qualquer site, não é limitação só deste protótipo.', true);
+      }
+      return;
+    }
+    const ligar = t.includes('ligar') || t.includes('ativar');
+    const desligar = t.includes('desligar') || t.includes('desativar');
+    if(ligar || desligar){
+      const key = findEffectKeyInText(t);
+      if(key && toggleInputs[key]){
+        toggleInputs[key].input.checked = ligar; effectEnabled[key] = ligar; toggleInputs[key].label.classList.toggle('active', ligar);
+        renderMap(); saveSettings();
+        jarvisSpeak(\`\${EFFECT_LABELS[key]} \${ligar?'ligado':'desligado'}.\`);
+        showTranscript(\`\${EFFECT_LABELS[key]} \${ligar?'ligado':'desligado'}.\`, true);
+        return;
+      }
+    }
+    aiInput.value = text;
+    showTranscript('Configurando: "'+text+'"…', true);
+    await generateConfig();
+    jarvisSpeak('Configuração aplicada.');
+  }
+})();
+</script>
+</body>
+</html>
